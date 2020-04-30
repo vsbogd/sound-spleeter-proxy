@@ -13,7 +13,12 @@ public class App {
 
     private static final Logger log = LoggerFactory.getLogger(App.class);
 
-    public static void main(String[] args) throws IOException, InterruptedException {
+    public static void main(String[] args) throws Exception {
+        if (args.length != 1) {
+            System.out.println("Usage: App <config_name>");
+            System.exit(1);
+        }
+
         Properties props = loadConfig(args[0]);
 
         Proxy handler = new Proxy(props);
