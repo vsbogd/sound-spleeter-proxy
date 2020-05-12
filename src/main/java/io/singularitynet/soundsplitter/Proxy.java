@@ -84,7 +84,8 @@ public class Proxy extends SoundSpleeterImplBase {
     }
 
     public void spleeter(Input request, StreamObserver<Output> responseObserver) {
-        log.info("request received: {}", request);
+        log.info("request received");
+        log.debug("request: {}", request);
         SoundSpleeterStub stub = selectStub();
         stub.spleeter(request, responseObserver);
     }

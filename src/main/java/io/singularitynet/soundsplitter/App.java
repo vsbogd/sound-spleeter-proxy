@@ -21,11 +21,15 @@ public class App {
         }
 
         Properties props = loadConfig(args[0]);
+        int proxyPort = Integer.parseInt(props.getProperty("proxy.port"));
+        int maxInboundMessageSize = Integer.parseInt(
+                props.getProperty("max.inbound.message.size"));
 
         Proxy handler = new Proxy(props);
         try {
             Server server = ServerBuilder
-                .forPort(Integer.decode(props.getProperty("proxy.port")))
+                .forPort(proxyPort)
+                .maxInboundMessageSize(maxInboundMessageSize)
                 .addService(handler)
                 .build();
             server.start();

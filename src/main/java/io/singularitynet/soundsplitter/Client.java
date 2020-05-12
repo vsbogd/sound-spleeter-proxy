@@ -4,7 +4,7 @@ import java.io.FileOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
-import io.grpc.Channel;
+import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
 import io.singularitynet.service.soundspleeter.SoundSpleeterGrpc;
@@ -26,18 +26,23 @@ public class Client {
         String vocalsWav = args[3];
         String accompWav = args[4];
 
-        Channel channel = ManagedChannelBuilder
+        ManagedChannel channel = ManagedChannelBuilder
             .forAddress(proxyHost, proxyPort)
+            .maxInboundMessageSize(1 << 24)
             .usePlaintext()
             .build();
-        SoundSpleeterBlockingStub stub = SoundSpleeterGrpc.newBlockingStub(channel);
+        try {
+            SoundSpleeterBlockingStub stub = SoundSpleeterGrpc.newBlockingStub(channel);
 
-        Input request = Input.newBuilder()
-            .setAudioUrl(audioUrl)
-            .build();
-        Output response = stub.spleeter(request);
-        bytesToFile(response.getVocals().toByteArray(), vocalsWav);
-        bytesToFile(response.getAccomp().toByteArray(), accompWav);
+            Input request = Input.newBuilder()
+                .setAudioUrl(audioUrl)
+                .build();
+            Output response = stub.spleeter(request);
+            bytesToFile(response.getVocals().toByteArray(), vocalsWav);
+            bytesToFile(response.getAccomp().toByteArray(), accompWav);
+        } finally {
+            channel.shutdownNow();
+        }
     }
 
     private static void bytesToFile(byte[] bytes, String fileName) throws IOException, FileNotFoundException {
