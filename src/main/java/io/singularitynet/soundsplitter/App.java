@@ -1,5 +1,6 @@
 package io.singularitynet.soundspleeter;
 
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.util.Properties;
@@ -15,7 +16,7 @@ public class App {
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
-            System.out.println("Usage: App <config_name>");
+            System.out.println("Usage: App [local|<config_file_name>]");
             System.exit(1);
         }
 
@@ -37,9 +38,15 @@ public class App {
     }
 
     private static Properties loadConfig(String configName) throws IOException {
+        InputStream is;
+        if (configName.equals("local")) {
+            is = App.class.getClassLoader()
+                .getResourceAsStream("local.properties");
+        } else {
+            is = new FileInputStream(configName);
+        }
+
         Properties props = new Properties();
-        InputStream is = App.class.getClassLoader()
-            .getResourceAsStream(configName);
         props.load(is);
         return props;
     }

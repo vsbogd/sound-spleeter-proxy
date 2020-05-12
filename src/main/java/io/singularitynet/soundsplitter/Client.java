@@ -15,23 +15,29 @@ import io.singularitynet.service.soundspleeter.SoundSpleeterOuterClass.Output;
 public class Client {
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 3) {
-            System.out.println("Usage: Client <audio_url> <vocals.wav> <accomp.wav>");
+        if (args.length != 5) {
+            System.out.println("Usage: Client <proxy_host> <proxy_port> <audio_url> <vocals.wav> <accomp.wav>");
             System.exit(1);
         }
 
+        String proxyHost = args[0];
+        int proxyPort = Integer.parseInt(args[1]);
+        String audioUrl = args[2];
+        String vocalsWav = args[3];
+        String accompWav = args[4];
+
         Channel channel = ManagedChannelBuilder
-            .forAddress("localhost", 1234)
+            .forAddress(proxyHost, proxyPort)
             .usePlaintext()
             .build();
         SoundSpleeterBlockingStub stub = SoundSpleeterGrpc.newBlockingStub(channel);
 
         Input request = Input.newBuilder()
-            .setAudioUrl(args[0])
+            .setAudioUrl(audioUrl)
             .build();
         Output response = stub.spleeter(request);
-        bytesToFile(response.getVocals().toByteArray(), args[1]);
-        bytesToFile(response.getAccomp().toByteArray(), args[2]);
+        bytesToFile(response.getVocals().toByteArray(), vocalsWav);
+        bytesToFile(response.getAccomp().toByteArray(), accompWav);
     }
 
     private static void bytesToFile(byte[] bytes, String fileName) throws IOException, FileNotFoundException {
