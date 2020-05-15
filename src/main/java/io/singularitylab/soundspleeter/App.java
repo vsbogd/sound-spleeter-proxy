@@ -1,4 +1,4 @@
-package io.singularitynet.soundspleeter;
+package io.singularitylab.soundspleeter;
 
 import java.io.File;
 import java.io.FileInputStream;

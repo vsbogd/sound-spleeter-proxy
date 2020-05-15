@@ -1,4 +1,4 @@
-package io.singularitynet.soundspleeter;
+package io.singularitylab.soundspleeter;
 
 public class Config {
 

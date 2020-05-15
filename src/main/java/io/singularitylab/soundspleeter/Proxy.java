@@ -1,4 +1,4 @@
-package io.singularitynet.soundspleeter;
+package io.singularitylab.soundspleeter;
 
 import io.grpc.stub.StreamObserver;
 import java.math.BigInteger;
