@@ -36,9 +36,9 @@ public class Proxy extends SoundSpleeterImplBase {
     private int nextStubIndex;
 
     public Proxy(Properties props) {
-        this.orgId = props.getProperty("organization.id");
-        this.serviceId = props.getProperty("service.id");
-        this.paymentGroupId = props.getProperty("payment.group.id");
+        this.orgId = props.getProperty(Config.ORGANIZATION_ID);
+        this.serviceId = props.getProperty(Config.SERVICE_ID);
+        this.paymentGroupId = props.getProperty(Config.PAYMENT_GROUP_ID);
         log.info("orgId: {}, serviceId: {}, paymentGroupId: {}",
                 orgId, serviceId, paymentGroupId);
         this.channelIds = readChannelIds(props);
@@ -67,10 +67,10 @@ public class Proxy extends SoundSpleeterImplBase {
     }
 
     private static long[] readChannelIds(Properties props) {
-        int length = Integer.decode(props.getProperty("channel.count"));
+        int length = Integer.decode(props.getProperty(Config.CHANNEL_COUNT));
         long[] result = new long[length];
         for (int i = 0; i < length; ++i) {
-            result[i] = Long.decode(props.getProperty("channel." + Long.toString(i)));
+            result[i] = Long.decode(props.getProperty(Config.getChannel(i)));
         }
         return result;
     }

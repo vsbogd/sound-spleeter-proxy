@@ -1,5 +1,6 @@
 package io.singularitynet.soundspleeter;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
@@ -21,17 +22,10 @@ public class App {
         }
 
         Properties props = loadConfig(args[0]);
-        int proxyPort = Integer.parseInt(props.getProperty("proxy.port"));
-        int maxInboundMessageSize = Integer.parseInt(
-                props.getProperty("max.inbound.message.size"));
 
         Proxy handler = new Proxy(props);
         try {
-            Server server = ServerBuilder
-                .forPort(proxyPort)
-                .maxInboundMessageSize(maxInboundMessageSize)
-                .addService(handler)
-                .build();
+            Server server = initGrpcServer(props, handler);
             server.start();
             log.info("server started");
             server.awaitTermination();
@@ -53,6 +47,33 @@ public class App {
         Properties props = new Properties();
         props.load(is);
         return props;
+    }
+
+    private static Server initGrpcServer(Properties props, Proxy handler) {
+        int proxyPort = Integer.parseInt(props.getProperty(Config.PROXY_PORT));
+        log.info("listening port: {}", proxyPort);
+
+        int maxInboundMessageSize = Integer.parseInt(
+                props.getProperty(Config.MAX_INBOUND_MESSAGE_SIZE));
+        log.info("max inbound message size: {}", maxInboundMessageSize);
+
+        ServerBuilder builder = ServerBuilder
+            .forPort(proxyPort)
+            .maxInboundMessageSize(maxInboundMessageSize)
+            .addService(handler);
+
+        if (props.getProperty(Config.DOMAIN_CERTIFICATE) != null) {
+            String certificate = props.getProperty(Config.DOMAIN_CERTIFICATE);
+            String private_key = props.getProperty(Config.DOMAIN_PRIVATE_KEY);
+            log.info("using transport security: " + 
+                    "certificate file: {}, " +
+                    "private key file: {}", certificate, private_key);
+            builder.useTransportSecurity(
+                    new File(certificate),
+                    new File(private_key));
+        }
+
+        return builder.build();
     }
 
 }
