@@ -87,7 +87,7 @@ public class Proxy extends SoundSpleeterImplBase {
         log.info("request received");
         log.debug("request: {}", request);
         SoundSpleeterStub stub = selectStub();
-        stub.spleeter(request, responseObserver);
+        stub.spleeter(request, new LoggingObserver<Output>(responseObserver));
     }
 
     private SoundSpleeterStub selectStub() {
@@ -95,6 +95,31 @@ public class Proxy extends SoundSpleeterImplBase {
         SoundSpleeterStub stub = stubs[nextStubIndex];
         nextStubIndex = (nextStubIndex + 1) % stubs.length;
         return stub;
+    }
+
+    private static class LoggingObserver<T> implements StreamObserver<T> {
+
+        private final StreamObserver<T> delegate;
+
+        public LoggingObserver(StreamObserver<T> delegate) {
+            this.delegate = delegate;
+        }
+
+        public void onCompleted() {
+            log.info("request completed");
+            delegate.onCompleted();
+        }
+
+        public void onError(Throwable t) {
+            log.info("request completed with error", t);
+            delegate.onError(t);
+        }
+
+        public void onNext(T value) {
+            log.info("next item in stream");
+            delegate.onNext(value);
+        }
+        
     }
 
 }
