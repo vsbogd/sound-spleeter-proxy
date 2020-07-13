@@ -3,6 +3,7 @@ package io.singularitylab.soundspleeter;
 import io.grpc.stub.StreamObserver;
 import java.math.BigInteger;
 import java.util.Properties;
+import com.google.protobuf.Message;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,7 +85,7 @@ public class Proxy extends SoundSpleeterImplBase {
     }
 
     public void spleeter(Input request, StreamObserver<Output> responseObserver) {
-        log.info("request received");
+        log.info("request received {} bytes", request.toByteArray().length);
         log.debug("request: {}", request);
         SoundSpleeterStub stub = selectStub();
         stub.spleeter(request, new LoggingObserver<Output>(responseObserver));
@@ -97,7 +98,7 @@ public class Proxy extends SoundSpleeterImplBase {
         return stub;
     }
 
-    private static class LoggingObserver<T> implements StreamObserver<T> {
+    private static class LoggingObserver<T extends Message> implements StreamObserver<T> {
 
         private final StreamObserver<T> delegate;
 
@@ -116,7 +117,7 @@ public class Proxy extends SoundSpleeterImplBase {
         }
 
         public void onNext(T value) {
-            log.info("next item in stream");
+            log.info("result {} bytes", value.toByteArray().length);
             delegate.onNext(value);
         }
         
