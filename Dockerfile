@@ -1,10 +1,11 @@
-FROM singularitynet/snet-local-env:3.0.0
+FROM singularitynet/snet-local-env:3.1.8
 
 RUN apt-get update
 RUN apt-get install -y ffmpeg
 
 RUN git clone https://github.com/singnet/dnn-model-services.git
 WORKDIR ./dnn-model-services/services/sound-spleeter
+RUN git checkout 54e173e1ccd0f4effa971ddf200ce1a5f4b037e8
 
 RUN sed -ie 's/spleeter/spleeter==1.4.9/' ./requirements.txt
 RUN pip3 install -r requirements.txt
