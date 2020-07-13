@@ -15,6 +15,11 @@ import org.slf4j.LoggerFactory;
 
 public class App {
 
+    static {
+        setSystemPropertyIfEmpty("org.slf4j.simpleLogger.showDateTime", "true");
+        setSystemPropertyIfEmpty("org.slf4j.simpleLogger.dateTimeFormat", "yyyy-MM-dd' 'HH:mm:ss.SSS");
+    }
+
     private static final Logger log = LoggerFactory.getLogger(App.class);
 
     public static void main(String[] args) throws Exception {
@@ -22,6 +27,7 @@ public class App {
             System.out.println("Usage: App [local|<config_file_name>]");
             System.exit(1);
         }
+
 
         Properties props = loadConfig(args[0]);
 
@@ -86,6 +92,12 @@ public class App {
         }
 
         return builder;
+    }
+    
+    private static void setSystemPropertyIfEmpty(String property, String value) {
+        if (System.getProperty(property) == null) {
+            System.setProperty(property, value);
+        }
     }
 
 }
