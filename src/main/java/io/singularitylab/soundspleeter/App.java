@@ -5,6 +5,8 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 import io.grpc.ServerBuilder;
 import io.grpc.Server;
@@ -23,14 +25,25 @@ public class App {
 
         Properties props = loadConfig(args[0]);
 
-        Proxy handler = new Proxy(props);
+        Proxy handler = null;
+        ExecutorService executor = null;
         try {
-            Server server = initGrpcServer(props, handler);
+            handler = new Proxy(props);
+            executor = Executors.newSingleThreadExecutor();
+            Server server = initGrpcServer(props)
+                .addService(handler)
+                .executor(executor)
+                .build();
             server.start();
             log.info("server started");
             server.awaitTermination();
         } finally {
-            handler.close();
+            if (executor != null) {
+                executor.shutdownNow();
+            }
+            if (handler != null) {
+                handler.close();
+            }
             log.info("server stopped");
         }
     }
@@ -49,7 +62,7 @@ public class App {
         return props;
     }
 
-    private static Server initGrpcServer(Properties props, Proxy handler) {
+    private static ServerBuilder initGrpcServer(Properties props) {
         int proxyPort = Integer.parseInt(props.getProperty(Config.PROXY_PORT));
         log.info("listening port: {}", proxyPort);
 
@@ -59,8 +72,7 @@ public class App {
 
         ServerBuilder builder = ServerBuilder
             .forPort(proxyPort)
-            .maxInboundMessageSize(maxInboundMessageSize)
-            .addService(handler);
+            .maxInboundMessageSize(maxInboundMessageSize);
 
         if (props.getProperty(Config.DOMAIN_CERTIFICATE) != null) {
             String certificate = props.getProperty(Config.DOMAIN_CERTIFICATE);
@@ -73,7 +85,7 @@ public class App {
                     new File(private_key));
         }
 
-        return builder.build();
+        return builder;
     }
 
 }
