@@ -5,8 +5,10 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.util.Properties;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ArrayBlockingQueue;
 
 import io.grpc.ServerBuilder;
 import io.grpc.Server;
@@ -35,7 +37,8 @@ public class App {
         ExecutorService executor = null;
         try {
             handler = new Proxy(props);
-            executor = Executors.newSingleThreadExecutor();
+            executor = newExecutor(handler.getNumberOfChannels(),
+                    Integer.parseInt(props.getProperty(Config.QUEUE_SIZE, "1000")));
             Server server = initGrpcServer(props)
                 .addService(handler)
                 .executor(executor)
@@ -92,6 +95,11 @@ public class App {
         }
 
         return builder;
+    }
+    
+    private static ExecutorService newExecutor(int threads, int queueSize) {
+        return new ThreadPoolExecutor(threads, threads, 0L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(queueSize));
     }
     
     private static void setSystemPropertyIfEmpty(String property, String value) {

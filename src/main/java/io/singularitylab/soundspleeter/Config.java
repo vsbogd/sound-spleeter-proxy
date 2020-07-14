@@ -12,6 +12,7 @@ public class Config {
     public static final String PAYMENT_GROUP_ID = "payment.group.id";
 
     public static final String CHANNEL_COUNT = "channel.count";
+    public static final String QUEUE_SIZE = "queue.size";
 
     public static String getChannel(long i) {
         return "channel." + Long.toString(i);
