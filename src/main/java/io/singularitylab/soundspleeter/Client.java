@@ -1,8 +1,11 @@
 package io.singularitylab.soundspleeter;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
+import com.google.protobuf.ByteString;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -16,13 +19,13 @@ public class Client {
 
     public static void main(String[] args) throws Exception {
         if (args.length != 5) {
-            System.out.println("Usage: Client <proxy_host> <proxy_port> <audio_url> <vocals.wav> <accomp.wav>");
+            System.out.println("Usage: Client <proxy_host> <proxy_port> <audio_file> <vocals.wav> <accomp.wav>");
             System.exit(1);
         }
 
         String proxyHost = args[0];
         int proxyPort = Integer.parseInt(args[1]);
-        String audioUrl = args[2];
+        File audioFile = new File(args[2]);
         String vocalsWav = args[3];
         String accompWav = args[4];
 
@@ -35,7 +38,7 @@ public class Client {
             SoundSpleeterBlockingStub stub = SoundSpleeterGrpc.newBlockingStub(channel);
 
             Input request = Input.newBuilder()
-                .setAudioUrl(audioUrl)
+                .setAudio(ByteString.copyFrom(Files.readAllBytes(audioFile.toPath())))
                 .build();
             Output response = stub.spleeter(request);
             bytesToFile(response.getVocals().toByteArray(), vocalsWav);

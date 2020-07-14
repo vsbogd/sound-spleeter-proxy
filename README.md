@@ -12,8 +12,8 @@ java -jar ./target/sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar l
 
 Run client:
 ```
-AUDIO_URL=https://github.com/deezer/spleeter/raw/master/audio_example.mp3
+wget https://github.com/deezer/spleeter/raw/master/audio_example.mp3
 java -cp ./target/sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar \
     io.singularitylab.soundspleeter.Client \
-    localhost 1234 ${AUDIO_URL} vocals.wav accomp.wav
+    localhost 1234 audio_example.mp3 vocals.wav accomp.wav
 ```
