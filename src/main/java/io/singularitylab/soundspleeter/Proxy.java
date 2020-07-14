@@ -3,6 +3,7 @@ package io.singularitylab.soundspleeter;
 import io.grpc.stub.StreamObserver;
 import java.math.BigInteger;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
 import com.google.protobuf.Message;
 
 import org.slf4j.Logger;
@@ -76,6 +77,9 @@ public class Proxy extends SoundSpleeterImplBase {
         return result;
     }
 
+    public int getNumberOfChannels() {
+        return channelIds.length;
+    }
 
     public void close() {
         for (ServiceClient client : serviceClients) {
@@ -88,7 +92,13 @@ public class Proxy extends SoundSpleeterImplBase {
         log.info("request received {} bytes", request.toByteArray().length);
         log.debug("request: {}", request);
         SoundSpleeterStub stub = selectStub();
-        stub.spleeter(request, new LoggingObserver<Output>(responseObserver));
+        ObserverWrapper<Output> observer = new ObserverWrapper<>(responseObserver);
+        stub.spleeter(request, observer);
+        try {
+            observer.awaitCompleted();
+        } catch(InterruptedException e) {
+            log.info("request interrupted");
+        }
     }
 
     private SoundSpleeterStub selectStub() {
@@ -98,27 +108,35 @@ public class Proxy extends SoundSpleeterImplBase {
         return stub;
     }
 
-    private static class LoggingObserver<T extends Message> implements StreamObserver<T> {
+    private static class ObserverWrapper<T extends Message> implements StreamObserver<T> {
 
         private final StreamObserver<T> delegate;
+        private final CountDownLatch completed;
 
-        public LoggingObserver(StreamObserver<T> delegate) {
+        public ObserverWrapper(StreamObserver<T> delegate) {
             this.delegate = delegate;
+            this.completed = new CountDownLatch(1);
         }
 
         public void onCompleted() {
             log.info("request completed");
             delegate.onCompleted();
+            completed.countDown();
         }
 
         public void onError(Throwable t) {
             log.info("request completed with error", t);
             delegate.onError(t);
+            completed.countDown();
         }
 
         public void onNext(T value) {
             log.info("result {} bytes", value.toByteArray().length);
             delegate.onNext(value);
+        }
+
+        public void awaitCompleted() throws InterruptedException {
+            completed.await();
         }
         
     }
