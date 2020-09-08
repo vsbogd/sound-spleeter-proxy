@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import com.google.protobuf.ByteString;
 
@@ -18,22 +19,26 @@ import io.singularitynet.service.soundspleeter.SoundSpleeterOuterClass.Output;
 public class Client {
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 5) {
-            System.out.println("Usage: Client <proxy_host> <proxy_port> <audio_file> <vocals.wav> <accomp.wav>");
+        if (args.length != 4) {
+            System.out.println("Usage: Client <proxy_url> <audio_file> <vocals.wav> <accomp.wav>");
             System.exit(1);
         }
 
-        String proxyHost = args[0];
-        int proxyPort = Integer.parseInt(args[1]);
-        File audioFile = new File(args[2]);
-        String vocalsWav = args[3];
-        String accompWav = args[4];
+        URL proxyUrl = new URL(args[0]);
+        boolean useTsl = proxyUrl.getProtocol().equals("https");
+        String proxyHost = proxyUrl.getHost();
+        int proxyPort = proxyUrl.getPort();
+        File audioFile = new File(args[1]);
+        String vocalsWav = args[2];
+        String accompWav = args[3];
 
-        ManagedChannel channel = ManagedChannelBuilder
+        ManagedChannelBuilder builder = ManagedChannelBuilder
             .forAddress(proxyHost, proxyPort)
-            .maxInboundMessageSize(1 << 24)
-            .usePlaintext()
-            .build();
+            .maxInboundMessageSize(1 << 24);
+        if (useTsl) {
+            builder.useTransportSecurity();
+        }
+        ManagedChannel channel = builder.build();
         try {
             SoundSpleeterBlockingStub stub = SoundSpleeterGrpc.newBlockingStub(channel);
 

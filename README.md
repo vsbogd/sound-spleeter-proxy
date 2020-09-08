@@ -15,5 +15,5 @@ Run client:
 wget https://github.com/deezer/spleeter/raw/master/audio_example.mp3
 java -cp ./target/sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar \
     io.singularitylab.soundspleeter.Client \
-    localhost 1234 audio_example.mp3 vocals.wav accomp.wav
+    http://localhost:1234 audio_example.mp3 vocals.wav accomp.wav
 ```

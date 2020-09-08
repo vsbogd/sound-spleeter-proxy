@@ -30,7 +30,6 @@ public class App {
             System.exit(1);
         }
 
-
         Properties props = loadConfig(args[0]);
 
         Proxy handler = null;
