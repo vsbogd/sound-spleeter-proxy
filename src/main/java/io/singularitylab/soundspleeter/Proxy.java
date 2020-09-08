@@ -35,6 +35,7 @@ public class Proxy extends SoundSpleeterImplBase {
     private final ServiceClient[] serviceClients;
     private final SoundSpleeterStub[] stubs;
 
+    private final Object lock = new Object();
     private int nextStubIndex;
 
     public Proxy(Properties props) {
@@ -102,10 +103,12 @@ public class Proxy extends SoundSpleeterImplBase {
     }
 
     private SoundSpleeterStub selectStub() {
-        log.info("use channel {} to handle request", channelIds[nextStubIndex]); 
-        SoundSpleeterStub stub = stubs[nextStubIndex];
-        nextStubIndex = (nextStubIndex + 1) % stubs.length;
-        return stub;
+        synchronized(lock) {
+            log.info("use channel {} to handle request", channelIds[nextStubIndex]); 
+            SoundSpleeterStub stub = stubs[nextStubIndex];
+            nextStubIndex = (nextStubIndex + 1) % stubs.length;
+            return stub;
+        }
     }
 
     private static class ObserverWrapper<T extends Message> implements StreamObserver<T> {
