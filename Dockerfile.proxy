@@ -1,0 +1,9 @@
+FROM openjdk:8
+
+ARG CONFIG
+
+WORKDIR /home
+COPY target/sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar .
+COPY $CONFIG ./config.properties
+
+CMD java -jar sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar config.properties
