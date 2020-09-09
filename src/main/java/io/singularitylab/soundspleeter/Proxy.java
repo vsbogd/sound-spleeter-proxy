@@ -9,7 +9,6 @@ import com.google.protobuf.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.singularitynet.sdk.common.Utils;
 import io.singularitynet.sdk.client.Configuration;
 import io.singularitynet.sdk.client.ConfigurationUtils;
 import io.singularitynet.sdk.client.Sdk;
@@ -26,11 +25,7 @@ public class Proxy extends SoundSpleeterImplBase {
 
     private static final Logger log = LoggerFactory.getLogger(SoundSpleeterStub.class);
 
-    private final String orgId;
-    private final String serviceId;
-    private final String paymentGroupId;
     private final long[] channelIds;
-
     private final Sdk sdk;
     private final ServiceClient[] serviceClients;
     private final SoundSpleeterStub[] stubs;
@@ -39,9 +34,9 @@ public class Proxy extends SoundSpleeterImplBase {
     private int nextStubIndex;
 
     public Proxy(Properties props) {
-        this.orgId = props.getProperty(Config.ORGANIZATION_ID);
-        this.serviceId = props.getProperty(Config.SERVICE_ID);
-        this.paymentGroupId = props.getProperty(Config.PAYMENT_GROUP_ID);
+        String orgId = props.getProperty(Config.ORGANIZATION_ID);
+        String serviceId = props.getProperty(Config.SERVICE_ID);
+        String paymentGroupId = props.getProperty(Config.PAYMENT_GROUP_ID);
         log.info("orgId: {}, serviceId: {}, paymentGroupId: {}",
                 orgId, serviceId, paymentGroupId);
         this.channelIds = readChannelIds(props);
