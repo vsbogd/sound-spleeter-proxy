@@ -37,6 +37,8 @@ public class Client {
             .maxInboundMessageSize(1 << 24);
         if (useTsl) {
             builder.useTransportSecurity();
+        } else {
+            builder.usePlaintext();
         }
         ManagedChannel channel = builder.build();
         try {
