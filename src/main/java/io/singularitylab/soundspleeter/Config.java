@@ -4,6 +4,7 @@ public class Config {
 
     public static final String PROXY_PORT = "proxy.port";
     public static final String MAX_INBOUND_MESSAGE_SIZE = "max.inbound.message.size";
+    public static final String REPORT_PERIOD_IN_SECONDS = "report.period.in.seconds";
     public static final String DOMAIN_CERTIFICATE = "domain.certificate";
     public static final String DOMAIN_PRIVATE_KEY = "domain.private.key";
 

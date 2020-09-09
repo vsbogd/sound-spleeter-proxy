@@ -1,11 +1,13 @@
 package io.singularitylab.soundspleeter;
 
-import io.grpc.stub.StreamObserver;
 import java.math.BigInteger;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
-import com.google.protobuf.Message;
 
+import com.google.protobuf.Message;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
+import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +35,9 @@ public class Proxy extends SoundSpleeterImplBase {
     private final Object lock = new Object();
     private int nextStubIndex;
 
-    public Proxy(Properties props) {
+    private final Timer processingTime;
+
+    public Proxy(MetricRegistry metrics, Properties props) {
         String orgId = props.getProperty(Config.ORGANIZATION_ID);
         String serviceId = props.getProperty(Config.SERVICE_ID);
         String paymentGroupId = props.getProperty(Config.PAYMENT_GROUP_ID);
@@ -62,6 +66,8 @@ public class Proxy extends SoundSpleeterImplBase {
             SoundSpleeterStub stub = serviceClient.getGrpcStub(SoundSpleeterGrpc::newStub);
             stubs[i] = stub;
         }
+
+        this.processingTime = metrics.timer(MetricRegistry.name(Proxy.class, "processingTime"));
     }
 
     private static long[] readChannelIds(Properties props) {
@@ -87,13 +93,15 @@ public class Proxy extends SoundSpleeterImplBase {
     public void spleeter(Input request, StreamObserver<Output> responseObserver) {
         log.info("request received {} bytes", request.toByteArray().length);
         log.trace("request: {}", request);
-        SoundSpleeterStub stub = selectStub();
-        ObserverWrapper<Output> observer = new ObserverWrapper<>(responseObserver);
-        stub.spleeter(request, observer);
-        try {
-            observer.awaitCompleted();
-        } catch(InterruptedException e) {
-            log.info("request interrupted");
+        try (final Timer.Context timer = processingTime.time()) {
+            SoundSpleeterStub stub = selectStub();
+            ObserverWrapper<Output> observer = new ObserverWrapper<>(responseObserver);
+            stub.spleeter(request, observer);
+            try {
+                observer.awaitCompleted();
+            } catch(InterruptedException e) {
+                log.info("request interrupted");
+            }
         }
     }
 

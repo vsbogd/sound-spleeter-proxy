@@ -14,6 +14,9 @@ import io.grpc.ServerBuilder;
 import io.grpc.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Slf4jReporter;
 
 public class App {
 
@@ -23,6 +26,8 @@ public class App {
     }
 
     private static final Logger log = LoggerFactory.getLogger(App.class);
+
+    private static final MetricRegistry metrics = new MetricRegistry();
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
@@ -35,7 +40,7 @@ public class App {
         Proxy handler = null;
         ExecutorService executor = null;
         try {
-            handler = new Proxy(props);
+            handler = new Proxy(metrics, props);
             executor = newExecutor(handler.getNumberOfChannels(),
                     Integer.parseInt(props.getProperty(Config.QUEUE_SIZE, "1000")));
             Server server = initGrpcServer(props)
@@ -43,6 +48,7 @@ public class App {
                 .executor(executor)
                 .build();
             server.start();
+            startMetricsReport(props);
             log.info("server started");
             server.awaitTermination();
         } finally {
@@ -97,8 +103,16 @@ public class App {
     }
     
     private static ExecutorService newExecutor(int threads, int queueSize) {
+        ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(queueSize);
+        metrics.register(MetricRegistry.name(Proxy.class, "requests", "size"),
+                new Gauge<Integer>() {
+                    @Override
+                    public Integer getValue() {
+                        return queue.size();
+                    }
+                });
         return new ThreadPoolExecutor(threads, threads, 0L, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<Runnable>(queueSize));
+                queue);
     }
     
     private static void setSystemPropertyIfEmpty(String property, String value) {
@@ -107,4 +121,14 @@ public class App {
         }
     }
 
+    private static void startMetricsReport(Properties props) {
+        int reportPeriodInSeconds = Integer.parseInt(
+                props.getProperty(Config.REPORT_PERIOD_IN_SECONDS, "30"));
+        Slf4jReporter reporter = Slf4jReporter.forRegistry(metrics)
+            .outputTo(LoggerFactory.getLogger("io.singularitylab.soundspleeter.metrics"))
+            .convertRatesTo(TimeUnit.SECONDS)
+            .convertDurationsTo(TimeUnit.MILLISECONDS)
+            .build();
+        reporter.start(reportPeriodInSeconds, TimeUnit.SECONDS);
+    }
 }

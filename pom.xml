@@ -43,6 +43,11 @@
       <artifactId>logback-classic</artifactId>
       <version>1.2.3</version>
     </dependency>
+    <dependency>
+      <groupId>io.dropwizard.metrics</groupId>
+      <artifactId>metrics-core</artifactId>
+      <version>4.1.12</version>
+    </dependency>
 
     <dependency>
       <groupId>junit</groupId>
