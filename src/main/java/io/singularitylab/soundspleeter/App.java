@@ -40,12 +40,13 @@ public class App {
         Proxy handler = null;
         ExecutorService executor = null;
         try {
-            handler = new Proxy(metrics, props);
-            executor = newExecutor(handler.getNumberOfChannels(),
+            long[] channelIds = readChannelIds(props);
+            log.info("payment channel ids to be used: {}", channelIds);
+            executor = newExecutor(channelIds.length,
                     Integer.parseInt(props.getProperty(Config.QUEUE_SIZE, "1000")));
+            handler = new Proxy(metrics, executor, channelIds, props);
             Server server = initGrpcServer(props)
                 .addService(handler)
-                .executor(executor)
                 .build();
             server.start();
             startMetricsReport(props);
@@ -130,5 +131,14 @@ public class App {
             .convertDurationsTo(TimeUnit.MILLISECONDS)
             .build();
         reporter.start(reportPeriodInSeconds, TimeUnit.SECONDS);
+    }
+
+    private static long[] readChannelIds(Properties props) {
+        int length = Integer.decode(props.getProperty(Config.CHANNEL_COUNT));
+        long[] result = new long[length];
+        for (int i = 0; i < length; ++i) {
+            result[i] = Long.decode(props.getProperty(Config.getChannel(i)));
+        }
+        return result;
     }
 }
