@@ -3,11 +3,15 @@ package io.singularitylab.soundspleeter;
 import java.math.BigInteger;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 import com.google.protobuf.Message;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
 import io.grpc.Status;
+import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +38,121 @@ public class Proxy extends SoundSpleeterImplBase {
     private final Object lock = new Object();
     private int nextChannelIndex;
 
+    private final ExecutorService executor;
+    private final Timer timeInQueue;
     private final Timer processingTime;
+    private final Counter pendingTasks;
+
+    public Proxy(MetricRegistry metrics, ExecutorService executor,
+            long[] channelIds, Properties props) {
+        String orgId = props.getProperty(Config.ORGANIZATION_ID);
+        String serviceId = props.getProperty(Config.SERVICE_ID);
+        String paymentGroupId = props.getProperty(Config.PAYMENT_GROUP_ID);
+        log.info("orgId: {}, serviceId: {}, paymentGroupId: {}",
+                orgId, serviceId, paymentGroupId);
+
+        this.channels = new Channel[channelIds.length];
+        this.nextChannelIndex = 0;
+        
+        Configuration config = ConfigurationUtils.fromProperties(props);
+        this.sdk = new Sdk(config);
+
+        for (int i = 0; i < channelIds.length; i++) {
+            long channelId = channelIds[i];
+
+            FixedPaymentChannelPaymentStrategy paymentStrategy = 
+                new FixedPaymentChannelPaymentStrategy(sdk, BigInteger.valueOf(channelId));
+
+            ServiceClient serviceClient = sdk.newServiceClient(orgId,
+                    "sound-spleeter", "default_group", paymentStrategy);
+
+            SoundSpleeterStub stub = serviceClient.getGrpcStub(SoundSpleeterGrpc::newStub);
+            this.channels[i] = new Channel(channelId, serviceClient, stub);
+        }
+
+        this.executor = executor;
+        this.timeInQueue = metrics.timer(MetricRegistry.name(Proxy.class, "timeInQueue"));
+        this.processingTime = metrics.timer(MetricRegistry.name(Proxy.class, "processingTime"));
+        this.pendingTasks = metrics.counter(MetricRegistry.name(Proxy.class, "pendingTasks"));
+    }
+
+    public int getNumberOfChannels() {
+        return channels.length;
+    }
+
+    public void close() {
+        for (Channel channel : channels) {
+            channel.serviceClient.close();
+        }
+        sdk.close();
+    }
+
+    public void spleeter(Input request, StreamObserver<Output> responseObserver) {
+        log.info("request received {} bytes", request.toByteArray().length);
+        log.trace("request: {}", request);
+        try {
+            executor.submit(new SpleeterTask(request, responseObserver));
+            pendingTasks.inc();
+        } catch(RejectedExecutionException e) {
+            responseObserver.onError(errorResourceExhausted("Task queue is full"));
+        }
+    }
+
+    private static StatusException errorResourceExhausted(String description) {
+        return Status.RESOURCE_EXHAUSTED.withDescription(description).asException();
+    }
+
+    private class SpleeterTask implements Runnable {
+        
+        private final Input request;
+        private final StreamObserver<Output> responseObserver;
+        private final Timer.Context queueTimer;
+
+        public SpleeterTask(Input request, StreamObserver<Output> responseObserver) {
+            this.request = request;
+            this.responseObserver = responseObserver;
+            this.queueTimer = timeInQueue.time();
+        }
+
+        public void run() {
+            pendingTasks.dec();
+            queueTimer.close();
+            try (final Timer.Context processingTimer = processingTime.time()) {
+                Channel channel = acquireChannel();
+                if (channel == null) {
+                    responseObserver.onError(
+                            errorResourceExhausted("No payment channel available"));
+                    return;
+                }
+                try {
+                    ObserverWrapper<Output> observer = new ObserverWrapper<>(responseObserver);
+                    channel.stub.spleeter(request, observer);
+                    try {
+                        observer.awaitCompleted();
+                    } catch(InterruptedException e) {
+                        log.info("request interrupted");
+                    }
+                } finally {
+                    channel.release();
+                }
+            }
+        }
+    }
+
+    private Channel acquireChannel() {
+        synchronized(lock) {
+            int startIndex = nextChannelIndex;
+            do {
+                Channel channel = channels[nextChannelIndex];
+                nextChannelIndex = (nextChannelIndex + 1) % channels.length;
+                if (channel.acquire()) {
+                    log.info("use channel {} to handle request", channel.id); 
+                    return channel;
+                }
+            } while (startIndex != nextChannelIndex);
+            return null;
+        }
+    }
 
     private static class Channel {
         final long id;
@@ -59,98 +177,6 @@ public class Proxy extends SoundSpleeterImplBase {
 
         public void release() {
             acquired = false;
-        }
-    }
-
-    public Proxy(MetricRegistry metrics, Properties props) {
-        String orgId = props.getProperty(Config.ORGANIZATION_ID);
-        String serviceId = props.getProperty(Config.SERVICE_ID);
-        String paymentGroupId = props.getProperty(Config.PAYMENT_GROUP_ID);
-        log.info("orgId: {}, serviceId: {}, paymentGroupId: {}",
-                orgId, serviceId, paymentGroupId);
-        long[] channelIds = readChannelIds(props);
-        log.info("payment channel ids to be used: {}", channelIds);
-
-        this.channels = new Channel[channelIds.length];
-        this.nextChannelIndex = 0;
-        
-        Configuration config = ConfigurationUtils.fromProperties(props);
-        this.sdk = new Sdk(config);
-
-        for (int i = 0; i < channelIds.length; i++) {
-            long channelId = channelIds[i];
-
-            FixedPaymentChannelPaymentStrategy paymentStrategy = 
-                new FixedPaymentChannelPaymentStrategy(sdk, BigInteger.valueOf(channelId));
-
-            ServiceClient serviceClient = sdk.newServiceClient(orgId,
-                    "sound-spleeter", "default_group", paymentStrategy);
-
-            SoundSpleeterStub stub = serviceClient.getGrpcStub(SoundSpleeterGrpc::newStub);
-            this.channels[i] = new Channel(channelId, serviceClient, stub);
-        }
-
-        this.processingTime = metrics.timer(MetricRegistry.name(Proxy.class, "processingTime"));
-    }
-
-    private static long[] readChannelIds(Properties props) {
-        int length = Integer.decode(props.getProperty(Config.CHANNEL_COUNT));
-        long[] result = new long[length];
-        for (int i = 0; i < length; ++i) {
-            result[i] = Long.decode(props.getProperty(Config.getChannel(i)));
-        }
-        return result;
-    }
-
-    public int getNumberOfChannels() {
-        return channels.length;
-    }
-
-    public void close() {
-        for (Channel channel : channels) {
-            channel.serviceClient.close();
-        }
-        sdk.close();
-    }
-
-    public void spleeter(Input request, StreamObserver<Output> responseObserver) {
-        log.info("request received {} bytes", request.toByteArray().length);
-        log.trace("request: {}", request);
-        try (final Timer.Context timer = processingTime.time()) {
-            Channel channel = acquireChannel();
-            if (channel == null) {
-                responseObserver.onError(
-                        Status.RESOURCE_EXHAUSTED
-                        .withDescription("No payment channel available")
-                        .asException());
-                return;
-            }
-            try {
-                ObserverWrapper<Output> observer = new ObserverWrapper<>(responseObserver);
-                channel.stub.spleeter(request, observer);
-                try {
-                    observer.awaitCompleted();
-                } catch(InterruptedException e) {
-                    log.info("request interrupted");
-                }
-            } finally {
-                channel.release();
-            }
-        }
-    }
-
-    private Channel acquireChannel() {
-        synchronized(lock) {
-            int startIndex = nextChannelIndex;
-            do {
-                Channel channel = channels[nextChannelIndex];
-                nextChannelIndex = (nextChannelIndex + 1) % channels.length;
-                if (channel.acquire()) {
-                    log.info("use channel {} to handle request", channel.id); 
-                    return channel;
-                }
-            } while (startIndex != nextChannelIndex);
-            return null;
         }
     }
 

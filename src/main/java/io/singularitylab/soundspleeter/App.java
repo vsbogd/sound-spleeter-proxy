@@ -15,7 +15,6 @@ import io.grpc.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Slf4jReporter;
 
 public class App {
@@ -40,12 +39,13 @@ public class App {
         Proxy handler = null;
         ExecutorService executor = null;
         try {
-            handler = new Proxy(metrics, props);
-            executor = newExecutor(handler.getNumberOfChannels(),
+            long[] channelIds = readChannelIds(props);
+            log.info("payment channel ids to be used: {}", channelIds);
+            executor = newExecutor(channelIds.length,
                     Integer.parseInt(props.getProperty(Config.QUEUE_SIZE, "1000")));
+            handler = new Proxy(metrics, executor, channelIds, props);
             Server server = initGrpcServer(props)
                 .addService(handler)
-                .executor(executor)
                 .build();
             server.start();
             startMetricsReport(props);
@@ -104,13 +104,6 @@ public class App {
     
     private static ExecutorService newExecutor(int threads, int queueSize) {
         ArrayBlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(queueSize);
-        metrics.register(MetricRegistry.name(Proxy.class, "requests", "size"),
-                new Gauge<Integer>() {
-                    @Override
-                    public Integer getValue() {
-                        return queue.size();
-                    }
-                });
         return new ThreadPoolExecutor(threads, threads, 0L, TimeUnit.SECONDS,
                 queue);
     }
@@ -130,5 +123,14 @@ public class App {
             .convertDurationsTo(TimeUnit.MILLISECONDS)
             .build();
         reporter.start(reportPeriodInSeconds, TimeUnit.SECONDS);
+    }
+
+    private static long[] readChannelIds(Properties props) {
+        int length = Integer.decode(props.getProperty(Config.CHANNEL_COUNT));
+        long[] result = new long[length];
+        for (int i = 0; i < length; ++i) {
+            result[i] = Long.decode(props.getProperty(Config.getChannel(i)));
+        }
+        return result;
     }
 }
