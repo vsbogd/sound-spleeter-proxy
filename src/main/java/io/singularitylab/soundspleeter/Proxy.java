@@ -8,6 +8,7 @@ import java.util.concurrent.RejectedExecutionException;
 
 import com.google.protobuf.Message;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
 import io.grpc.Status;
 import io.grpc.StatusException;
@@ -40,6 +41,7 @@ public class Proxy extends SoundSpleeterImplBase {
     private final ExecutorService executor;
     private final Timer timeInQueue;
     private final Timer processingTime;
+    private final Counter pendingTasks;
 
     public Proxy(MetricRegistry metrics, ExecutorService executor,
             long[] channelIds, Properties props) {
@@ -71,6 +73,7 @@ public class Proxy extends SoundSpleeterImplBase {
         this.executor = executor;
         this.timeInQueue = metrics.timer(MetricRegistry.name(Proxy.class, "timeInQueue"));
         this.processingTime = metrics.timer(MetricRegistry.name(Proxy.class, "processingTime"));
+        this.pendingTasks = metrics.counter(MetricRegistry.name(Proxy.class, "pendingTasks"));
     }
 
     public int getNumberOfChannels() {
@@ -89,6 +92,7 @@ public class Proxy extends SoundSpleeterImplBase {
         log.trace("request: {}", request);
         try {
             executor.submit(new SpleeterTask(request, responseObserver));
+            pendingTasks.inc();
         } catch(RejectedExecutionException e) {
             responseObserver.onError(errorResourceExhausted("Task queue is full"));
         }
@@ -111,6 +115,7 @@ public class Proxy extends SoundSpleeterImplBase {
         }
 
         public void run() {
+            pendingTasks.dec();
             queueTimer.close();
             try (final Timer.Context processingTimer = processingTime.time()) {
                 Channel channel = acquireChannel();
