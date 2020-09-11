@@ -9,6 +9,7 @@ import java.util.concurrent.RejectedExecutionException;
 import com.google.protobuf.Message;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;
 import io.grpc.Status;
 import io.grpc.StatusException;
@@ -39,9 +40,12 @@ public class Proxy extends SoundSpleeterImplBase {
     private int nextChannelIndex;
 
     private final ExecutorService executor;
+
     private final Timer timeInQueue;
     private final Timer processingTime;
     private final Counter pendingTasks;
+    private final Histogram pendingTasksHist;
+    private final Counter rejectedTasks;
 
     public Proxy(MetricRegistry metrics, ExecutorService executor,
             long[] channelIds, Properties props) {
@@ -64,16 +68,19 @@ public class Proxy extends SoundSpleeterImplBase {
                 new FixedPaymentChannelPaymentStrategy(sdk, BigInteger.valueOf(channelId));
 
             ServiceClient serviceClient = sdk.newServiceClient(orgId,
-                    "sound-spleeter", "default_group", paymentStrategy);
+                    serviceId, paymentGroupId, paymentStrategy);
 
             SoundSpleeterStub stub = serviceClient.getGrpcStub(SoundSpleeterGrpc::newStub);
             this.channels[i] = new Channel(channelId, serviceClient, stub);
         }
 
         this.executor = executor;
+
         this.timeInQueue = metrics.timer(MetricRegistry.name(Proxy.class, "timeInQueue"));
         this.processingTime = metrics.timer(MetricRegistry.name(Proxy.class, "processingTime"));
         this.pendingTasks = metrics.counter(MetricRegistry.name(Proxy.class, "pendingTasks"));
+        this.pendingTasksHist = metrics.histogram(MetricRegistry.name(Proxy.class, "pendingTasksHist"));
+        this.rejectedTasks = metrics.counter(MetricRegistry.name(Proxy.class, "rejectedTasks"));
     }
 
     public int getNumberOfChannels() {
@@ -93,7 +100,9 @@ public class Proxy extends SoundSpleeterImplBase {
         try {
             executor.submit(new SpleeterTask(request, responseObserver));
             pendingTasks.inc();
+            pendingTasksHist.update(pendingTasks.getCount());
         } catch(RejectedExecutionException e) {
+            rejectedTasks.inc();
             responseObserver.onError(errorResourceExhausted("Task queue is full"));
         }
     }
@@ -116,6 +125,7 @@ public class Proxy extends SoundSpleeterImplBase {
 
         public void run() {
             pendingTasks.dec();
+            pendingTasksHist.update(pendingTasks.getCount());
             queueTimer.close();
             try (final Timer.Context processingTimer = processingTime.time()) {
                 Channel channel = acquireChannel();
