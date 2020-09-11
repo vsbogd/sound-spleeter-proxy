@@ -1,9 +1,13 @@
 FROM openjdk:8
 
-ARG CONFIG
+ENV LOGBACK_CONFIG logback.xml
+ENV CONFIG local
 
+RUN mkdir -p /home
 WORKDIR /home
-COPY target/sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar .
-COPY $CONFIG ./config.properties
 
-CMD java -jar sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar config.properties
+COPY target/sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar .
+
+CMD java -cp sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar \
+    -Dlogback.configurationFile=${LOGBACK_CONFIG} \
+    io.singularitylab.soundspleeter.App ${CONFIG}

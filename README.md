@@ -20,7 +20,15 @@ java -cp ./target/sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar \
 
 Build proxy docker for deployment:
 ```sh
-docker build --build-arg CONFIG=<config.properties> -f Dockerfile.proxy -t sound-spleeter-proxy .
+docker build -f Dockerfile.proxy -t sound-spleeter-proxy .
+```
+Run proxy in docker:
+```sh
+docker run --rm --name sound-spleeter-proxy \
+    -p <port>:<port> \
+    -v config.properties:/home/config.properties
+    -e CONFIG=/home/config.properties
+    -d sound-spleeter-proxy
 ```
 see [local.properties](./src/main/resources/local.properties) for example of
 properties file.
