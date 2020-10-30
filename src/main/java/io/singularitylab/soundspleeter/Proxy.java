@@ -5,6 +5,7 @@ import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.protobuf.Message;
 import com.codahale.metrics.MetricRegistry;
@@ -46,6 +47,8 @@ public class Proxy extends SoundSpleeterImplBase {
     private final Counter pendingTasks;
     private final Histogram pendingTasksHist;
     private final Counter rejectedTasks;
+
+    private final AtomicInteger nextRequestId = new AtomicInteger(0);
 
     public Proxy(MetricRegistry metrics, ExecutorService executor,
             long[] channelIds, Properties props) {
@@ -95,10 +98,11 @@ public class Proxy extends SoundSpleeterImplBase {
     }
 
     public void spleeter(Input request, StreamObserver<Output> responseObserver) {
-        log.info("request received {} bytes", request.toByteArray().length);
-        log.trace("request: {}", request);
+        int id = nextRequestId.incrementAndGet();
+        log.info("request[{}] received {} bytes", id, request.toByteArray().length);
+        log.trace("request[{}]: {}", id, request);
         try {
-            executor.submit(new SpleeterTask(request, responseObserver));
+            executor.submit(new SpleeterTask(id, request, responseObserver));
             pendingTasks.inc();
             pendingTasksHist.update(pendingTasks.getCount());
         } catch(RejectedExecutionException e) {
@@ -113,17 +117,20 @@ public class Proxy extends SoundSpleeterImplBase {
 
     private class SpleeterTask implements Runnable {
         
+        private final int id;
         private final Input request;
         private final StreamObserver<Output> responseObserver;
         private final Timer.Context queueTimer;
 
-        public SpleeterTask(Input request, StreamObserver<Output> responseObserver) {
+        public SpleeterTask(int id, Input request, StreamObserver<Output> responseObserver) {
+            this.id = id;
             this.request = request;
             this.responseObserver = responseObserver;
             this.queueTimer = timeInQueue.time();
         }
 
         public void run() {
+            log.info("request[{}] processing started", id);
             pendingTasks.dec();
             pendingTasksHist.update(pendingTasks.getCount());
             queueTimer.close();
@@ -137,13 +144,14 @@ public class Proxy extends SoundSpleeterImplBase {
                             errorResourceExhausted("No payment channel available"));
                     return;
                 }
+                log.info("use channel {} to handle request[{}]", channel.id, id); 
                 try {
-                    ObserverWrapper<Output> observer = new ObserverWrapper<>(responseObserver);
+                    ObserverWrapper<Output> observer = new ObserverWrapper<>(id, responseObserver);
                     channel.stub.spleeter(request, observer);
                     try {
                         observer.awaitCompleted();
                     } catch(InterruptedException e) {
-                        log.info("request interrupted");
+                        log.error("request[{}] interrupted", id);
                     }
                 } finally {
                     synchronized(lock) {
@@ -160,7 +168,6 @@ public class Proxy extends SoundSpleeterImplBase {
             Channel channel = channels[nextChannelIndex];
             nextChannelIndex = (nextChannelIndex + 1) % channels.length;
             if (channel.acquire()) {
-                log.info("use channel {} to handle request", channel.id); 
                 return channel;
             }
         } while (startIndex != nextChannelIndex);
@@ -195,28 +202,30 @@ public class Proxy extends SoundSpleeterImplBase {
 
     private static class ObserverWrapper<T extends Message> implements StreamObserver<T> {
 
+        private final int id;
         private final StreamObserver<T> delegate;
         private final CountDownLatch completed;
 
-        public ObserverWrapper(StreamObserver<T> delegate) {
+        public ObserverWrapper(int id, StreamObserver<T> delegate) {
+            this.id = id;
             this.delegate = delegate;
             this.completed = new CountDownLatch(1);
         }
 
         public void onCompleted() {
-            log.info("request completed");
+            log.info("request[{}] completed", id);
             delegate.onCompleted();
             completed.countDown();
         }
 
         public void onError(Throwable t) {
-            log.info("request completed with error", t);
+            log.error("request[{}] completed with error", id, t);
             delegate.onError(t);
             completed.countDown();
         }
 
         public void onNext(T value) {
-            log.info("result {} bytes", value.toByteArray().length);
+            log.info("request[{}] result {} bytes", id, value.toByteArray().length);
             delegate.onNext(value);
         }
 
