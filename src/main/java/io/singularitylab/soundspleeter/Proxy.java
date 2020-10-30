@@ -128,7 +128,10 @@ public class Proxy extends SoundSpleeterImplBase {
             pendingTasksHist.update(pendingTasks.getCount());
             queueTimer.close();
             try (final Timer.Context processingTimer = processingTime.time()) {
-                Channel channel = acquireChannel();
+                Channel channel;
+                synchronized(lock) {
+                    channel = acquireChannel();
+                }
                 if (channel == null) {
                     responseObserver.onError(
                             errorResourceExhausted("No payment channel available"));
@@ -143,25 +146,25 @@ public class Proxy extends SoundSpleeterImplBase {
                         log.info("request interrupted");
                     }
                 } finally {
-                    channel.release();
+                    synchronized(lock) {
+                        channel.release();
+                    }
                 }
             }
         }
     }
 
     private Channel acquireChannel() {
-        synchronized(lock) {
-            int startIndex = nextChannelIndex;
-            do {
-                Channel channel = channels[nextChannelIndex];
-                nextChannelIndex = (nextChannelIndex + 1) % channels.length;
-                if (channel.acquire()) {
-                    log.info("use channel {} to handle request", channel.id); 
-                    return channel;
-                }
-            } while (startIndex != nextChannelIndex);
-            return null;
-        }
+        int startIndex = nextChannelIndex;
+        do {
+            Channel channel = channels[nextChannelIndex];
+            nextChannelIndex = (nextChannelIndex + 1) % channels.length;
+            if (channel.acquire()) {
+                log.info("use channel {} to handle request", channel.id); 
+                return channel;
+            }
+        } while (startIndex != nextChannelIndex);
+        return null;
     }
 
     private static class Channel {
