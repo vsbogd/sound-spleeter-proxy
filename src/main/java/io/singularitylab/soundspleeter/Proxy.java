@@ -14,6 +14,7 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;
 import io.grpc.Status;
 import io.grpc.StatusException;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -219,7 +220,18 @@ public class Proxy extends SoundSpleeterImplBase {
         }
 
         public void onError(Throwable t) {
-            log.error("request[{}] completed with error", id, t);
+            boolean error = true;
+            if (t instanceof StatusRuntimeException) {
+                StatusRuntimeException e = (StatusRuntimeException) t;
+                if (Status.CANCELLED.getCode().equals(e.getStatus().getCode())) {
+                    error = false;
+                }
+            }
+            if (error) {
+                log.error("request[{}] completed with error", id, t);
+            } else {
+                log.info("NOT AN ISSUE: request[{}] completed with error", id, t);
+            }
             delegate.onError(t);
             completed.countDown();
         }
