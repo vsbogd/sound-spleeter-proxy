@@ -48,6 +48,12 @@
       <artifactId>metrics-core</artifactId>
       <version>4.1.12</version>
     </dependency>
+    <dependency>
+      <groupId>com.github.maricn</groupId>
+      <artifactId>logback-slack-appender</artifactId>
+      <version>1.4.0</version>
+      <scope>runtime</scope>
+    </dependency>
 
     <dependency>
       <groupId>junit</groupId>
