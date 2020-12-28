@@ -214,26 +214,28 @@ public class Proxy extends SoundSpleeterImplBase {
         }
 
         public void onCompleted() {
-            log.info("request[{}] completed", id);
-            delegate.onCompleted();
-            completed.countDown();
+            callDelegateAndComplete(() -> {
+                log.info("request[{}] completed", id);
+                delegate.onCompleted();
+            });
         }
 
         public void onError(Throwable t) {
-            boolean error = true;
-            if (t instanceof StatusRuntimeException) {
-                StatusRuntimeException e = (StatusRuntimeException) t;
-                if (Status.CANCELLED.getCode().equals(e.getStatus().getCode())) {
-                    error = false;
+            callDelegateAndComplete(() -> {
+                boolean error = true;
+                if (t instanceof StatusRuntimeException) {
+                    StatusRuntimeException e = (StatusRuntimeException) t;
+                    if (Status.CANCELLED.getCode().equals(e.getStatus().getCode())) {
+                        error = false;
+                    }
                 }
-            }
-            if (error) {
-                log.error("request[{}] completed with error", id, t);
-            } else {
-                log.info("NOT AN ISSUE: request[{}] completed with error", id, t);
-            }
-            delegate.onError(t);
-            completed.countDown();
+                if (error) {
+                    log.error("request[{}] completed with error", id, t);
+                } else {
+                    log.info("NOT AN ISSUE: request[{}] completed with error", id, t);
+                }
+                delegate.onError(t);
+            });
         }
 
         public void onNext(T value) {
@@ -241,10 +243,19 @@ public class Proxy extends SoundSpleeterImplBase {
             delegate.onNext(value);
         }
 
+        private void callDelegateAndComplete(Runnable callback) {
+            try {
+                callback.run();
+            } catch (Throwable t) {
+                log.error("request[{}] error in call to delegate", id, t);
+            } finally {
+                completed.countDown();
+            }
+        }
+
         public void awaitCompleted() throws InterruptedException {
             completed.await();
         }
-        
     }
 
 }
