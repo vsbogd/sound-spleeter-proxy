@@ -33,7 +33,7 @@ import io.singularitynet.service.soundspleeter.SoundSpleeterOuterClass.Output;
 
 public class Proxy extends SoundSpleeterImplBase {
 
-    private static final Logger log = LoggerFactory.getLogger(SoundSpleeterStub.class);
+    private static final Logger log = LoggerFactory.getLogger(Proxy.class);
 
     private final Sdk sdk;
     private final Channel[] channels;
@@ -220,20 +220,28 @@ public class Proxy extends SoundSpleeterImplBase {
             });
         }
 
+        private boolean isCallAlreadyCancelled(Throwable t) {
+            boolean error = true;
+            if (t instanceof StatusRuntimeException) {
+                StatusRuntimeException e = (StatusRuntimeException) t;
+                if (Status.CANCELLED.getCode().equals(e.getStatus().getCode())) {
+                    error = false;
+                }
+            }
+            return error;
+        }
+
+        private void logError(message, int id, Throwable t) {
+            if (isCallAlreadyCancelled(t)) {
+                log.error(message, id, t);
+            } else {
+                log.info("NOT AN ISSUE: " + message, id, t);
+            }
+        }
+
         public void onError(Throwable t) {
             callDelegateAndComplete(() -> {
-                boolean error = true;
-                if (t instanceof StatusRuntimeException) {
-                    StatusRuntimeException e = (StatusRuntimeException) t;
-                    if (Status.CANCELLED.getCode().equals(e.getStatus().getCode())) {
-                        error = false;
-                    }
-                }
-                if (error) {
-                    log.error("request[{}] completed with error", id, t);
-                } else {
-                    log.info("NOT AN ISSUE: request[{}] completed with error", id, t);
-                }
+                logError("request[{}] completed with error", id, t);
                 delegate.onError(t);
             });
         }
@@ -247,7 +255,7 @@ public class Proxy extends SoundSpleeterImplBase {
             try {
                 callback.run();
             } catch (Throwable t) {
-                log.error("request[{}] error in call to delegate", id, t);
+                logError("request[{}] error in call to delegate", id, t);
             } finally {
                 completed.countDown();
             }
