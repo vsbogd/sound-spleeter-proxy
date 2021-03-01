@@ -33,7 +33,7 @@ import io.singularitynet.service.soundspleeter.SoundSpleeterOuterClass.Output;
 
 public class Proxy extends SoundSpleeterImplBase {
 
-    private static final Logger log = LoggerFactory.getLogger(SoundSpleeterStub.class);
+    private static final Logger log = LoggerFactory.getLogger(Proxy.class);
 
     private final Sdk sdk;
     private final Channel[] channels;
@@ -214,12 +214,13 @@ public class Proxy extends SoundSpleeterImplBase {
         }
 
         public void onCompleted() {
-            log.info("request[{}] completed", id);
-            delegate.onCompleted();
-            completed.countDown();
+            callDelegateAndComplete(() -> {
+                log.info("request[{}] completed", id);
+                delegate.onCompleted();
+            });
         }
 
-        public void onError(Throwable t) {
+        private boolean isCallAlreadyCancelled(Throwable t) {
             boolean error = true;
             if (t instanceof StatusRuntimeException) {
                 StatusRuntimeException e = (StatusRuntimeException) t;
@@ -227,13 +228,22 @@ public class Proxy extends SoundSpleeterImplBase {
                     error = false;
                 }
             }
-            if (error) {
-                log.error("request[{}] completed with error", id, t);
+            return error;
+        }
+
+        private void logError(message, int id, Throwable t) {
+            if (isCallAlreadyCancelled(t)) {
+                log.error(message, id, t);
             } else {
-                log.info("NOT AN ISSUE: request[{}] completed with error", id, t);
+                log.info("NOT AN ISSUE: " + message, id, t);
             }
-            delegate.onError(t);
-            completed.countDown();
+        }
+
+        public void onError(Throwable t) {
+            callDelegateAndComplete(() -> {
+                logError("request[{}] completed with error", id, t);
+                delegate.onError(t);
+            });
         }
 
         public void onNext(T value) {
@@ -241,10 +251,19 @@ public class Proxy extends SoundSpleeterImplBase {
             delegate.onNext(value);
         }
 
+        private void callDelegateAndComplete(Runnable callback) {
+            try {
+                callback.run();
+            } catch (Throwable t) {
+                logError("request[{}] error in call to delegate", id, t);
+            } finally {
+                completed.countDown();
+            }
+        }
+
         public void awaitCompleted() throws InterruptedException {
             completed.await();
         }
-        
     }
 
 }
