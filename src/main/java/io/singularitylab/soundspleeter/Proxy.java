@@ -69,7 +69,7 @@ public class Proxy extends SoundSpleeterImplBase {
             long channelId = channelIds[i];
 
             FixedPaymentChannelPaymentStrategy paymentStrategy = 
-                new FixedPaymentChannelPaymentStrategy(sdk, BigInteger.valueOf(channelId));
+                new FixedPaymentChannelPaymentStrategy(BigInteger.valueOf(channelId));
 
             ServiceClient serviceClient = sdk.newServiceClient(orgId,
                     serviceId, paymentGroupId, paymentStrategy);
