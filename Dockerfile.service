@@ -1,4 +1,4 @@
-FROM singularitynet/snet-local-env:3.1.8
+FROM singularitynet/snet-local-env:5.0.1
 
 RUN apt-get update
 RUN apt-get install -y ffmpeg
