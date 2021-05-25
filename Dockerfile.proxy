@@ -6,8 +6,8 @@ ENV CONFIG local
 RUN mkdir -p /home
 WORKDIR /home
 
-COPY target/sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar .
+COPY target/sound-spleeter-proxy-1.0.0-jar-with-dependencies.jar .
 
-CMD java -cp sound-spleeter-proxy-1.0-SNAPSHOT-jar-with-dependencies.jar \
+CMD java -cp sound-spleeter-proxy-1.0.0-jar-with-dependencies.jar \
     -Dlogback.configurationFile=${LOGBACK_CONFIG} \
     io.singularitylab.soundspleeter.App ${CONFIG}

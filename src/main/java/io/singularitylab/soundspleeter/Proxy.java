@@ -231,7 +231,7 @@ public class Proxy extends SoundSpleeterImplBase {
             return error;
         }
 
-        private void logError(message, int id, Throwable t) {
+        private void logError(String message, int id, Throwable t) {
             if (isCallAlreadyCancelled(t)) {
                 log.error(message, id, t);
             } else {
