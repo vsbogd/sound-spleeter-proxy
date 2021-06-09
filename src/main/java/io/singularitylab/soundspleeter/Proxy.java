@@ -73,8 +73,10 @@ public class Proxy extends SoundSpleeterImplBase {
             FixedPaymentChannelPaymentStrategy paymentStrategy = 
                 new FixedPaymentChannelPaymentStrategy(BigInteger.valueOf(channelId));
 
+            int maxInboundMessageSize = Integer.parseInt(
+                    props.getProperty(Config.MAX_INBOUND_MESSAGE_SIZE));
             GrpcSettings grpcSettings = GrpcSettings.newBuilder()
-                .setMaxInboundMessageSize(20 * 1 << 20) /* 20 Mb */
+                .setMaxInboundMessageSize(maxInboundMessageSize)
                 .build();
             ServiceClient serviceClient = sdk.newServiceClient(orgId,
                     serviceId, new FixedGroupEndpointSelector(paymentGroupId),
