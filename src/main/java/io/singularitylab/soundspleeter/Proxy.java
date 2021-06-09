@@ -24,6 +24,8 @@ import io.singularitynet.sdk.client.ConfigurationUtils;
 import io.singularitynet.sdk.client.Sdk;
 import io.singularitynet.sdk.paymentstrategy.FixedPaymentChannelPaymentStrategy;
 import io.singularitynet.sdk.client.ServiceClient;
+import io.singularitynet.sdk.daemon.FixedGroupEndpointSelector;
+import io.singularitynet.sdk.daemon.GrpcSettings;
 
 import io.singularitynet.service.soundspleeter.SoundSpleeterGrpc;
 import io.singularitynet.service.soundspleeter.SoundSpleeterGrpc.SoundSpleeterImplBase;
@@ -71,8 +73,12 @@ public class Proxy extends SoundSpleeterImplBase {
             FixedPaymentChannelPaymentStrategy paymentStrategy = 
                 new FixedPaymentChannelPaymentStrategy(BigInteger.valueOf(channelId));
 
+            GrpcSettings grpcSettings = GrpcSettings.newBuilder()
+                .setMaxInboundMessageSize(20 * 1 << 20) /* 20 Mb */
+                .build();
             ServiceClient serviceClient = sdk.newServiceClient(orgId,
-                    serviceId, paymentGroupId, paymentStrategy);
+                    serviceId, new FixedGroupEndpointSelector(paymentGroupId),
+                    paymentStrategy, grpcSettings);
 
             SoundSpleeterStub stub = serviceClient.getGrpcStub(SoundSpleeterGrpc::newStub);
             this.channels[i] = new Channel(channelId, serviceClient, stub);
