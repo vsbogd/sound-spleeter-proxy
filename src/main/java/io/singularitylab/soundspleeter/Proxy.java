@@ -162,6 +162,8 @@ public class Proxy extends SoundSpleeterImplBase {
                     } catch(InterruptedException e) {
                         log.error("request[{}] interrupted", id);
                     }
+                } catch(Throwable t) {
+                    log.error("request[{}] failed to make a gRPC call", id, t);
                 } finally {
                     synchronized(lock) {
                         channel.release();
